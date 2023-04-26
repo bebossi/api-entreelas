@@ -13,6 +13,7 @@ module.exports = (sequelize, DataTypes) => {
       });
       User.hasOne(models.Cart, {
         foreignKey: "userId",
+        onDelete: "CASCADE",
       });
       User.hasMany(models.Order, {
         foreignKey: "userId",
@@ -34,6 +35,8 @@ module.exports = (sequelize, DataTypes) => {
       },
       role: DataTypes.STRING,
       password: DataTypes.STRING,
+      resetToken: DataTypes.STRING,
+      resetTokenExpiration: DataTypes.DATE,
     },
     {
       sequelize,

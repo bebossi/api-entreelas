@@ -41,7 +41,7 @@ class CartController {
         const newProduct = await database.Product.findByPk(productId);
         await cart.addProduct(newProduct);
         const cartItem = await database.CartItem.findOne({
-          where: { ProductId: productId },
+          where: { ProductId: productId, CartId: cartId },
         });
         await cartItem.update({
           quantity: 1,
@@ -51,12 +51,12 @@ class CartController {
 
       // Reload the cart to get the updated products
       const products = await cart.getProducts();
-      const totalPrice = products.reduce((sum, product) => {
+      const totalPrice = await products.reduce((sum, product) => {
         const cartItem = product.CartItem;
         return sum + cartItem.quantity * product.price;
       }, 0);
 
-      await cart.update({ totalPrice });
+      await cart.update({ totalPrice: totalPrice });
 
       const updatedCart = await database.Cart.findByPk(cartId, {
         include: database.Product,

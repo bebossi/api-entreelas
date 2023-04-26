@@ -16,3 +16,5 @@ const requireAuth = (req, res, next) => {
     console.log(err);
   }
 };
+
+module.exports = requireAuth;

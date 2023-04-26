@@ -24,9 +24,10 @@ class OrderController {
     }
   }
 
-  static async createOrder(req, res) {
+  static async createOrderByCart(req, res) {
     try {
-      const { userId } = req.params;
+      const { userId } = req.currentUser.id;
+      console.log(userId);
       const user = await database.User.findByPk(userId);
       const cart = await user.getCart();
       const products = await cart.getProducts();

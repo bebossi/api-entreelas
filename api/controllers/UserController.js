@@ -1,6 +1,9 @@
 const database = require("../models");
 const bcrypt = require("bcrypt");
 const generateToken = require("../config/jwt.config");
+const nodemailer = require("nodemailer");
+const crypto = require("crypto");
+const { Op } = require("sequelize");
 
 class UserController {
   static async getUsers(req, res) {
@@ -51,6 +54,27 @@ class UserController {
 
       delete createdUser.password;
 
+      const cart = await createdUser.createCart();
+      async function notifyAdmin(toEmail) {
+        const transport = nodemailer.createTransport({
+          host: "sandbox.smtp.mailtrap.io",
+          port: 2525,
+          auth: {
+            user: "0105dc2752e455",
+            pass: "54351b02f74217",
+          },
+        });
+
+        const info = await transport.sendMail({
+          from: "bernardobossi77@gmail.com",
+          to: toEmail,
+          subject: "Confirm your account",
+          text: "Click in the link below to confirm your account",
+        });
+      }
+
+      await notifyAdmin(createdUser.email);
+
       return res.status(200).json(createdUser);
     } catch (err) {
       console.log(err);
@@ -94,8 +118,9 @@ class UserController {
 
   static async updateUser(req, res) {
     try {
-      const { userId } = req.params;
+      const userId = req.currentUser.id;
       const newInfo = req.body;
+      console.log(req.currentUser.id);
 
       await database.User.update(newInfo, {
         where: { id: Number(userId) },
@@ -106,7 +131,7 @@ class UserController {
 
       return res.status(201).json(updatedUser);
     } catch (err) {
-      return res.status(500).json(err.message);
+      return res.status(500).json(err);
     }
   }
 
@@ -114,11 +139,94 @@ class UserController {
     try {
       const { userId } = req.params;
 
+      await database.Cart.destroy({ where: { userId: Number(userId) } });
       await database.User.destroy({ where: { id: Number(userId) } });
 
       return res.status(201).json({ message: "User deleted" });
     } catch (err) {
-      return res.status(500).json(err.message);
+      return res.status(500).json(err);
+    }
+  }
+
+  static async forgotPassword(req, res) {
+    try {
+      crypto.randomBytes(32, async (err, buffer) => {
+        if (err) {
+          console.log(err);
+        }
+
+        const token = buffer.toString("hex");
+
+        const { email } = req.body;
+        const user = await database.User.findOne({ where: { email: email } });
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        user.resetToken = token;
+        user.resetTokenExpiration = Date.now() + 3600000;
+        await user.save();
+
+        async function notifyAdmin(toEmail) {
+          const transport = nodemailer.createTransport({
+            host: "sandbox.smtp.mailtrap.io",
+            port: 2525,
+            auth: {
+              user: "0105dc2752e455",
+              pass: "54351b02f74217",
+            },
+          });
+
+          const info = await transport.sendMail({
+            from: "bernardobossi77@gmail.com",
+            to: toEmail,
+            subject: "Forgot Password",
+            text: "Click in the link below to update your password",
+          });
+        }
+        await notifyAdmin(user.email);
+
+        return res
+          .status(200)
+          .json({ message: "Check your email, to update your password" });
+      });
+    } catch (err) {
+      console.log(err);
+    }
+  }
+
+  static async updatePassword(req, res) {
+    try {
+      const { newPassword } = req.body;
+      const { token } = req.params;
+
+      const user = await database.User.findOne({
+        where: {
+          resetToken: token,
+          resetTokenExpiration: { [Op.gte]: Date.now() },
+        },
+      });
+
+      if (
+        !user.resetToken ||
+        user.resetToken !== token ||
+        user.resetTokenExpiration <= Date.now()
+      ) {
+        return res
+          .status(400)
+          .json({ message: "Invalid or expired reset token" });
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      user.password = hashedPassword;
+      user.resetToken = null;
+      user.resetTokenExpiration = null;
+
+      await user.save();
+
+      return res.status(200).json({ message: "Password updated succesfully" });
+    } catch (err) {
+      console.log(err);
     }
   }
 }

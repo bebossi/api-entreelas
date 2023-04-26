@@ -1,13 +1,12 @@
-const UserModel = require("../models/user");
+const database = require("../models");
 
-export default async function attachCurrentUser(req, res, next) {
+async function attachCurrentUser(req, res, next) {
   try {
     const userData = req.auth;
 
-    const user = await UserModel.findOne(
-      { _id: userData._id },
-      { passwordHash: 0 }
-    );
+    const user = await database.User.findOne({
+      where: { id: Number(userData.id) },
+    });
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
@@ -21,3 +20,5 @@ export default async function attachCurrentUser(req, res, next) {
     return res.status(500).json(err);
   }
 }
+
+module.exports = attachCurrentUser;
